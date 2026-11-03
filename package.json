@@ -1,0 +1,13 @@
+{
+  "name": "nativecast",
+  "version": "0.0.0",
+  "description": "Open-source macOS launcher with TypeScript extensions. Work in progress, nothing usable yet.",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/raeperd/nativecast.git"
+  },
+  "homepage": "https://github.com/raeperd/nativecast",
+  "bugs": "https://github.com/raeperd/nativecast/issues",
+  "keywords": ["launcher", "raycast-alternative", "macos", "extensions"],
+  "files": ["README.md"]
+}
