@@ -1,0 +1,51 @@
+{
+    "$schema": "https://schema.native-sdk.dev/app/v1.json",
+    "id": "dev.nativecast.app",
+    "name": "nativecast",
+    "display_name": "nativecast",
+    "description": "Open-source macOS launcher with TypeScript extensions.",
+    "version": "0.1.0",
+    "icons": ["assets/icon.png"],
+    "platforms": ["macos"],
+    "permissions": ["view", "command", "network", "clipboard", "open_url"],
+    "capabilities": ["native_views", "gpu_surfaces", "tray", "shortcuts"],
+    "dock_visible": false,
+    "commands": [
+        { "id": "app.toggle", "title": "Show nativecast" },
+        { "id": "app.quit", "title": "Quit" },
+        { "id": "list.next", "title": "Next result" },
+        { "id": "list.previous", "title": "Previous result" },
+        { "id": "window.hide", "title": "Hide" }
+    ],
+    "shortcuts": [
+        { "id": "list.next", "key": "arrowdown", "modifiers": [] },
+        { "id": "list.previous", "key": "arrowup", "modifiers": [] },
+        { "id": "window.hide", "key": "escape", "modifiers": [] }
+    ],
+    "shell": {
+        "windows": [
+            {
+                "label": "main",
+                "title": "nativecast",
+                "width": 640,
+                "height": 420,
+                "titlebar": "chromeless",
+                "always_on_top": true,
+                "initially_hidden": true,
+                "close_policy": "hide",
+                "restore_policy": "center_on_primary",
+                "views": [
+                    { "label": "main-canvas", "kind": "gpu_surface", "fill": true, "role": "Launcher", "accessibility_label": "Launcher", "gpu_backend": "metal", "gpu_pixel_format": "bgra8_unorm", "gpu_present_mode": "timer", "gpu_alpha_mode": "opaque", "gpu_color_space": "srgb", "gpu_vsync": true }
+                ]
+            }
+        ]
+    },
+    "security": {
+        "navigation": {
+            "allowed_origins": ["zero://app", "zero://inline"],
+            "external_links": { "action": "open_system_browser", "allowed_urls": ["*"] }
+        }
+    },
+    "web_engine": "system",
+    "cef": { "dir": "third_party/cef/macos", "auto_install": false }
+}
