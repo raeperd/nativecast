@@ -1,0 +1,6 @@
+.tools/
+node_modules/
+dist/
+.native/
+zig-out/
+.zig-cache/
