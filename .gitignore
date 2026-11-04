@@ -4,3 +4,4 @@ dist/
 .native/
 zig-out/
 .zig-cache/
+.*.bun-build
