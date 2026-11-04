@@ -139,7 +139,10 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       if (hasPrefix(row.action, asciiBytes("url"))) {
         return [{ ...model, visible: false }, Cmd.batch([Cmd.openExternalUrl(row.value), Cmd.hideWindow("main")])];
       }
-      return [{ ...model, visible: false }, Cmd.batch([Cmd.clipboardWrite(row.value), Cmd.hideWindow("main")])];
+      return [{ ...model, visible: false }, Cmd.batch([Cmd.clipboardWrite(row.value), Cmd.hideWindow("main"), Cmd.fetch(
+          { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        )])];
     }
     case "choose":
       return { ...model, selected: msg.id };
@@ -150,15 +153,24 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     case "select_previous":
       return { ...model, selected: model.selected > 0 ? model.selected - 1 : 0 };
     case "toggle":
-      if (model.visible) return [{ ...model, visible: false }, Cmd.hideWindow("main")];
+      if (model.visible) return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
+          { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        )])];
       return [{ ...model, visible: true }, Cmd.showWindow("main")];
     case "hide":
-      return [{ ...model, visible: false }, Cmd.hideWindow("main")];
+      return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
+          { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        )])];
     case "quit":
       return [model, Cmd.quitApp()];
     case "host_line":
       if (!hasPrefix(msg.line, asciiBytes("HOTKEY"))) return onHostLine(model, msg.line);
-      if (model.visible) return [{ ...model, visible: false }, Cmd.hideWindow("main")];
+      if (model.visible) return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
+          { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        )])];
       return [{ ...model, visible: true }, Cmd.showWindow("main")];
     case "host_exit":
       return { ...model, status: utf8Bytes(`Host exited with code ${Math.trunc(msg.code)}`) };

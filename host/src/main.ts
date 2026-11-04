@@ -18,6 +18,7 @@ const token = crypto.randomUUID();
 const extensions = new Map<string, Extension>();
 const reloadTimers = new Map<string, Timer>();
 let currentSearch: AbortController | undefined;
+let previousFront: string | undefined;
 
 async function main() {
   await mkdir(extensionsDir, { recursive: true });
@@ -34,12 +35,27 @@ async function main() {
       if (request.headers.get("authorization") !== `Bearer ${token}`) {
         return new Response("unauthorized\n", { status: 401 });
       }
+      if (new URL(request.url).pathname === "/restore-focus") return restoreFocus();
       const body = await request.text();
       const tab = body.indexOf("\t");
       return search(body.slice(0, tab), body.slice(tab + 1));
     },
   });
   emit("READY", server.port, token);
+}
+
+/** `Cmd.hideWindow` leaves the accessory app frontmost, so the host hands focus back. */
+function restoreFocus() {
+  if (previousFront) Bun.spawnSync(["open", "-a", previousFront]);
+  previousFront = undefined;
+  return new Response();
+}
+
+/** `lsappinfo setfront` answers permErr, so the app is reopened by path instead. */
+function frontAppPath() {
+  const front = Bun.spawnSync(["lsappinfo", "front"]).stdout.toString().trim();
+  const info = Bun.spawnSync(["lsappinfo", "info", "-only", "bundlepath", front]).stdout.toString();
+  return info.match(/="(.+)"/)?.[1];
 }
 
 /** One search is live at a time: a new request ends the previous stream. */
@@ -246,7 +262,9 @@ function startHotkeyHelper() {
   const child = Bun.spawn([helper], { stdout: "pipe", stderr: "pipe" });
   (async () => {
     for await (const line of child.stdout.pipeThrough(new TextDecoderStream())) {
-      if (line.includes("HOTKEY")) emit("HOTKEY");
+      if (!line.includes("HOTKEY")) continue;
+      previousFront ??= frontAppPath();
+      emit("HOTKEY");
     }
     const reason = await new Response(child.stderr).text();
     emit("ERROR", "hotkey", reason || `helper exited with ${await child.exited}`);
