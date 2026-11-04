@@ -10,6 +10,7 @@
     "permissions": ["view", "command", "network", "clipboard", "open_url"],
     "capabilities": ["native_views", "gpu_surfaces", "tray", "shortcuts"],
     "dock_visible": false,
+    "assets": { "fonts": [{ "id": 64, "path": "assets/fonts/NotoSansKR.ttf" }] },
     "commands": [
         { "id": "app.toggle", "title": "Show nativecast" },
         { "id": "app.quit", "title": "Quit" },

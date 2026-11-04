@@ -5,3 +5,4 @@ dist/
 zig-out/
 .zig-cache/
 .*.bun-build
+app/assets/fonts/

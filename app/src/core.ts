@@ -12,6 +12,7 @@
 
 import { Cmd, asciiBytes, utf8Bytes } from "@native-sdk/core";
 import { type StatusItemState } from "@native-sdk/core/events";
+import { type ThemeDesignTokenOverrides } from "@native-sdk/core/theme";
 import {
   applyTextInputEvent,
   clampedInsertEvent,
@@ -310,6 +311,11 @@ export function commandMsg(name: string): Msg | null {
   if (name === "list.next") return { kind: "select_next" };
   if (name === "list.previous") return { kind: "select_previous" };
   return null;
+}
+
+/// Font id 64 is Noto Sans KR from app.json; the stock faces have no Hangul.
+export function tokenOverrides(_model: Model): ThemeDesignTokenOverrides {
+  return { typography: { font_id: 64, button_font_id: 64 } };
 }
 
 export function statusItem(model: Model): StatusItemState {
