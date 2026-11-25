@@ -1,13 +1,17 @@
 // Real app, real host, real extension files, driven through `native automate`.
 // Run with scripts/test-e2e.sh. One app serves the whole file to keep it fast.
 import { afterAll, beforeAll, expect, test } from "bun:test";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
 const root = resolve(import.meta.dir, "..");
 const appDir = join(root, "app");
-const extensions = mkdtempSync(join(tmpdir(), "nativecast-e2e-"));
+const home = mkdtempSync(join(tmpdir(), "nativecast-e2e-"));
+const extensions = join(home, "extensions");
+// The app folder holds links to real system apps, so results do not depend on
+// what this machine has installed.
+const apps = join(home, "apps");
 const abortLog = join(extensions, ".aborted");
 let app: Bun.Subprocess;
 let searchField: string;
@@ -15,6 +19,9 @@ let savedClipboard: string;
 
 beforeAll(async () => {
   savedClipboard = Bun.spawnSync(["pbpaste"]).stdout.toString();
+  mkdirSync(extensions);
+  mkdirSync(apps);
+  symlinkSync("/System/Applications/Calculator.app", join(apps, "Calculator.app"));
   rmSync(join(appDir, ".zig-cache/native-sdk-automation"), { recursive: true, force: true });
   app = Bun.spawn([join(appDir, "zig-out/bin/nativecast")], {
     cwd: appDir,
@@ -24,6 +31,7 @@ beforeAll(async () => {
       ...process.env,
       NATIVECAST_HOST: join(root, "dist/bin/nativecast-host"),
       NATIVECAST_EXTENSIONS_DIR: extensions,
+      NATIVECAST_APP_DIRS: apps,
     },
   });
   automate("wait");
@@ -34,7 +42,7 @@ beforeAll(async () => {
 afterAll(() => {
   Bun.spawnSync(["pbcopy"], { stdin: Buffer.from(savedClipboard) });
   app.kill();
-  rmSync(extensions, { recursive: true, force: true });
+  rmSync(home, { recursive: true, force: true });
 });
 
 function automate(...args: string[]) {
@@ -221,6 +229,25 @@ test("arrow selection and Enter copy the selected result", async () => {
   }
   expect(Bun.spawnSync(["pbpaste"]).stdout.toString()).toBe("second copied");
   uninstall("copy.ts");
+});
+
+test("an application is found by name and opens on Enter", async () => {
+  const running = () => Bun.spawnSync(["pgrep", "-x", "Calculator"]).exitCode === 0;
+  const wasRunning = running();
+  type("calcu");
+  assertSnapshot('role=listitem name="Calculator"');
+  automate("widget-action", "main-canvas", searchField, "focus");
+  automate("widget-key", "main-canvas", "enter");
+  for (let i = 0; i < 50 && !running(); i++) await Bun.sleep(100);
+  expect(running()).toBe(true);
+  if (!wasRunning) Bun.spawnSync(["pkill", "-x", "Calculator"]);
+});
+
+test("an application added to a subfolder shows up without a restart", () => {
+  mkdirSync(join(apps, "Games"));
+  symlinkSync("/System/Applications/Chess.app", join(apps, "Games", "Chess.app"));
+  type("chess");
+  assertSnapshot('role=listitem name="Chess"');
 });
 
 test("the host and hotkey helper exit with the app", async () => {

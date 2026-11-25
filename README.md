@@ -17,6 +17,8 @@ scripts/package.sh        # dist/nativecast.app and dist/nativecast.dmg
 open dist/nativecast.app  # NC appears in the menu bar
 ```
 
-Copy `examples/extensions/stock.ts` to `~/.nativecast/extensions/`, press Control+Option+Space or use the menu bar item, and type `stock 삼성`.
+Press Control+Option+Space or use the menu bar item, type part of an application name, and press Enter to open it. Applications come from `/Applications`, `/System/Applications`, and `~/Applications`.
+
+For an extension, copy `examples/extensions/stock.ts` to `~/.nativecast/extensions/` and type `stock 삼성`.
 
 `scripts/verify-hotkey-focus.sh` covers the checks automation cannot reach. Run it on an unlocked screen.

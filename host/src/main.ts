@@ -5,6 +5,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { Item } from "./api";
+import { searchApps } from "./apps";
 
 const SEARCH_TIMEOUT_MS = 5_000;
 const HOOK_TIMEOUT_MS = 1_000;
@@ -35,8 +36,10 @@ async function main() {
       if (request.headers.get("authorization") !== `Bearer ${token}`) {
         return new Response("unauthorized\n", { status: 401 });
       }
-      if (new URL(request.url).pathname === "/restore-focus") return restoreFocus();
+      const { pathname } = new URL(request.url);
+      if (pathname === "/restore-focus") return restoreFocus();
       const body = await request.text();
+      if (pathname === "/open") return openApp(body);
       const tab = body.indexOf("\t");
       return search(body.slice(0, tab), body.slice(tab + 1));
     },
@@ -47,6 +50,13 @@ async function main() {
 /** `Cmd.hideWindow` leaves the accessory app frontmost, so the host hands focus back. */
 function restoreFocus() {
   if (previousFront) Bun.spawnSync(["open", "-a", previousFront]);
+  previousFront = undefined;
+  return new Response();
+}
+
+/** The opened app comes to the front, so the previous one is forgotten. */
+function openApp(path: string) {
+  Bun.spawn(["open", path]);
   previousFront = undefined;
   return new Response();
 }
@@ -74,6 +84,11 @@ function search(seq: string, rawQuery: string) {
       write("S", seq);
       const query = await runQueryHooks(rawQuery, signal);
       const { keyword, text } = route(query);
+      if (keyword === undefined && text !== "") {
+        for (const app of await searchApps(text)) {
+          write("R", seq, "apps", field(app.name), field(app.path), "open", field(app.path));
+        }
+      }
       const searches: Promise<void>[] = [];
       for (const extension of sorted()) {
         extension.keywords.forEach((sourceKeyword, source) => {
