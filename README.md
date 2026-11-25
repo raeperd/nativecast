@@ -17,7 +17,7 @@ scripts/package.sh        # dist/nativecast.app and dist/nativecast.dmg
 open dist/nativecast.app  # NC appears in the menu bar
 ```
 
-Press Control+Option+Space or use the menu bar item, type part of an application name, and press Enter to open it. Applications come from `/Applications`, `/System/Applications`, and `~/Applications`. Better name matches come first, and applications you open often move up; the counts are kept in `~/.nativecast/usage.json`.
+Press Control+Option+Space or use the menu bar item, type part of an application name, and press Enter to open it. Applications come from `/Applications`, `/System/Applications`, and `~/Applications`. Better name matches come first, and applications you open often move up; the counts are kept in `~/.nativecast/usage.json`. The window opens on an empty search that lists the applications you opened most.
 
 For an extension, copy `examples/extensions/stock.ts` to `~/.nativecast/extensions/` and type `stock 삼성`.
 

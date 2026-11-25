@@ -5,7 +5,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { Item } from "./api";
-import { recordOpen, searchApps } from "./apps";
+import { recordOpen, searchApps, suggestedApps } from "./apps";
 
 const SEARCH_TIMEOUT_MS = 5_000;
 const HOOK_TIMEOUT_MS = 1_000;
@@ -85,8 +85,8 @@ function search(seq: string, rawQuery: string) {
       write("S", seq);
       const query = await runQueryHooks(rawQuery, signal);
       const { keyword, text } = route(query);
-      if (keyword === undefined && text !== "") {
-        for (const app of await searchApps(text)) {
+      if (keyword === undefined) {
+        for (const app of text === "" ? await suggestedApps() : await searchApps(text)) {
           write("R", seq, "apps", field(app.name), field(app.path), "open", field(app.path));
         }
       }
