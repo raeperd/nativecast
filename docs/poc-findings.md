@@ -126,12 +126,13 @@ spec의 세 문제를 다시 확인했어요.
 - 기본 폰트에 한글이 없어서 모든 한글이 네모로 나와요. spec에 없던 문제예요. `assets.fonts`로 Noto Sans KR을 등록하고 `tokenOverrides`의 `font_id`로 지정해서 해결했어요. 폰트는 저장소에 넣지 않고 `scripts/setup-native.sh`가 내려받아요. 렌더링은 자동화 스크린샷으로 확인했는데, 이 스크린샷은 CPU 참조 렌더러라서 실제 Metal 화면 캡처는 아니에요. Screen Recording 권한이 없어서 실제 창 캡처는 실패했어요.
 - `native package`가 큰 asset에서 `StreamTooLong`으로 실패하고 asset의 실행 권한을 없애요.
 - `app.json`의 `allowed_urls`가 틀리면 어느 필드인지 없이 `manifest fields failed semantic validation`만 나와요.
+- `Cmd.batch`에서 `Cmd.showWindow` 뒤에 둔 명령이 깨져요. `[showWindow, fetch]` 순서로 창을 열면 앱이 `truncated wire record`나 `unknown command wire record`로 패닉했고, `[fetch, showWindow]`로 바꾸니 4회 반복이 모두 통과했어요. `showWindow`가 실행되는 동안 명령 버퍼가 덮어써지는 것으로 추정해요. SDK 코드에서 원인은 확인하지 않았어요.
 - 앱 단축키는 `NSEvent` local monitor에서 먼저 처리되고 IME 조합 상태를 보지 않아요. 코드만 확인했어요. 조합 중에 방향키나 Esc를 누르면 조합이 아니라 앱 단축키로 갈 수 있어요.
 
 ## 구현 결정
 
 - 호스트 요청은 `POST /`이고 본문은 `<seq>\t<query>`예요. URL 인코딩을 앱 코어에서 구현하지 않기 위해서예요.
-- 응답은 탭 구분 줄이에요. `S <seq>`, `R <seq> <source> <title> <subtitle> <url|copy> <value>`, `D <seq>`예요. 호스트가 탭과 줄바꿈을 공백으로 바꾸고 필드를 1,500바이트로 잘라서 한 줄이 `maxLineBytes` 8192 안에 들어와요.
+- 응답은 탭 구분 줄이에요. `S <seq>`, `R <seq> <source> <title> <subtitle> <url|copy|open> <value>`, `D <seq>`예요. 호스트가 탭과 줄바꿈을 공백으로 바꾸고 필드를 1,500바이트로 잘라서 한 줄이 `maxLineBytes` 8192 안에 들어와요.
 - 호스트 이벤트는 stdout의 `READY`, `HOTKEY`, `LOADED`, `ERROR`, `REMOVED`예요.
 - loopback 포트는 임의 포트이고, 호스트가 시작할 때 만든 토큰을 `Authorization: Bearer`로 확인해요. spec의 미정 항목이지만 다른 프로세스가 확장을 실행할 수 있어서 넣었어요. 토큰 없는 요청은 401이에요.
 - `stock 삼성`처럼 첫 단어가 등록된 keyword이면 그 source만 실행해요. 그 밖의 검색은 keyword가 있는 source까지 모든 source에 가요.
@@ -139,14 +140,21 @@ spec의 세 문제를 다시 확인했어요.
 - 재로드는 측정에서 5~29ms가 걸렸어요. 번들링을 포함한 값이고, 작은 확장 기준이에요.
 - 교체되는 Worker에 걸린 검색은 빈 결과로 끝나요.
 - 단축키 기본값은 Control+Option+Space예요. 설정 기능은 없어요.
+- 앱 검색은 호스트에 내장했어요. `/Applications`, `/System/Applications`, `~/Applications`와 그 바로 아래 폴더의 `.app`을 검색할 때마다 읽어요. 캐시와 감시가 없어서 새로 설치한 앱이 바로 나와요. 이름은 번들 파일 이름이고, 현지화된 표시 이름은 읽지 않아요.
+- 앱을 고르면 앱 코어가 `POST /open`으로 경로를 보내고 호스트가 `open`을 실행해요. 앱 코어에서 파일 경로를 여는 명령을 따로 찾지 않기 위해서예요.
+- 앱 순위는 이름 일치 점수에 사용 보너스를 더해요. 점수는 전체 일치 100, 이름 앞부분 80, 단어 앞부분 60, 단어 첫 글자 50, 부분 문자열 40, 글자 순서 20이에요. 런처에서 열 때마다 보너스가 10씩 붙고 최대 30이며 10일마다 반으로 줄어요. 기록은 `~/.nativecast/usage.json`에 있어요. 숫자는 임시값이에요.
+- 앱 결과는 최대 8개예요. 한 글자 검색에서 앱이 50행 제한을 채워 확장 결과를 밀어내지 않게 하려는 값이에요. 확장 결과는 순위를 매기지 않고 도착한 순서대로 붙어요.
+- 창을 열면 검색어를 지우고 빈 검색을 보내요. 호스트는 빈 검색에 자주 연 앱을 돌려줘요. 기록이 없으면 목록이 비어요.
 
 ## 시험
 
 `tests/e2e.test.ts`는 실제 앱, 실제 호스트, 실제 확장 파일로 돌아가고 mock이 없어요. 네트워크도 쓰지 않아요.
 
-다루는 동작이에요: 파일 추가, 수정, 깨진 확장과 복구, 삭제, `query` 훅, keyword, `node_modules` 패키지 확장, 느린 검색, 취소, 조합 입력, 방향키 선택과 Enter 복사, 앱 종료 시 프로세스 정리.
+다루는 동작이에요: 파일 추가, 수정, 깨진 확장과 복구, 삭제, `query` 훅, keyword, `node_modules` 패키지 확장, 느린 검색, 취소, 조합 입력, 방향키 선택과 Enter 복사, 앱 이름 순위, Enter로 앱 열기, 연 앱의 순위 상승, 빈 검색 추천, 창을 열 때 검색어 초기화, 하위 폴더에 추가한 앱, 앱 종료 시 프로세스 정리.
 
-- spec과 달리 시험마다 앱을 띄우지 않고 파일당 하나를 써요. 전체 약 15초예요.
+- spec과 달리 시험마다 앱을 띄우지 않고 파일당 하나를 써요. 전체 약 17초예요.
+- 앱 폴더는 임시 폴더이고 실제 시스템 앱(Calculator, Calendar, Activity Monitor, Chess)의 심볼릭 링크를 둬요. 설치된 앱에 따라 결과가 달라지지 않게 하려는 거예요. 사용 기록도 임시 파일이에요.
+- 앱 열기 시험은 실제 Calculator를 띄웠다가 종료해요. 창 열기 시험은 런처 창을 잠깐 띄우고 앞에 있던 앱을 `open -a`로 되돌려요. 두 시험 동안 화면 포커스가 잠깐 바뀌어요.
 - `set_text`와 `set_composition`은 앱의 입력 경로를 타지만 macOS 입력기를 거치지 않아요.
 - 방향키는 `automate shortcut`으로 보냈어요. 실제 키 입력은 시험하지 않았어요.
 - URL 열기는 브라우저를 띄우기 때문에 시험하지 않았어요. 복사만 확인했어요.
@@ -162,6 +170,21 @@ spec의 세 문제를 다시 확인했어요.
 - 확장별 오류 목록이에요. 상태 표시줄은 마지막 이벤트 하나만 보여 줘요.
 - 호스트가 죽었을 때 다시 띄우는 처리예요. 상태 표시줄에 표시만 해요.
 - 단축키 설정, 결과 아이콘, 창 디자인, 코드 서명과 공증이에요.
+
+## 개선 우선순위
+
+tinycast(`abue-ammar/tinycast`), vicinae(`vicinaehq/vicinae`), sol(`ospfranco/sol`)의 코드를 읽고 정했어요. 1~3은 구현했어요.
+
+1. 앱 검색과 실행이에요. 세 런처 모두 기본 기능이고, 없으면 확장을 설치하기 전에는 쓸 일이 없어요. 구현했어요.
+2. 결과 순위예요. 세 런처 모두 이름 일치 점수와 사용 기록을 써요. tinycast는 10일 반감기, vicinae는 방문 수와 최근성의 합이에요. 앱 결과에 구현했어요.
+3. 빈 검색어 화면이에요. tinycast와 vicinae는 자주 쓴 항목을, sol은 사용한 항목부터 전체를 보여 줘요. 구현했어요.
+4. 창과 포커스예요. tinycast와 sol은 `.nonactivatingPanel` `NSPanel`을 써서 앞 앱을 바꾸지 않고, sol은 `.fullScreenAuxiliary`와 `.canJoinAllSpaces`로 전체 화면 위에 띄워요. 지금은 `open -a`로 되돌리는 우회예요. Native SDK가 패널 종류를 열어 주는지부터 확인해야 해요.
+5. 한글 이름 검색이에요. 현지화된 앱 이름, 초성 검색(`ㄱㅅㄱ` → 계산기), 영문 자판으로 친 한글이에요. tinycast는 한글을 로마자로 바꿔 맞추고 초성 검색은 없어요.
+6. 결과 하나에 동작 여러 개예요. vicinae는 첫 동작을 Enter에, 나머지를 Cmd+K 패널에 둬요. spec의 `actions`와 같은 자리예요.
+7. 설정이에요. 단축키 변경, 로그인 시 실행, 중복 실행 방지예요. sol은 `~/.config/sol/config.json`에 둬요.
+8. 확장 manifest와 preferences, secrets예요. vicinae는 필수 값이 없으면 그 값만 묻는 화면을 띄워요.
+9. 내장 계산기와 클립보드 기록이에요. 세 런처 모두 갖고 있어요.
+10. 결과 아이콘과 창 디자인이에요.
 
 ## 다음 단계
 

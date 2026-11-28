@@ -27,6 +27,7 @@ const MAX_ROWS = 50;
 
 const EMPTY_BYTES = asciiBytes("");
 const TAB = asciiBytes("\t");
+const EMPTY_SEARCH: SearchDraft = { bytes: EMPTY_BYTES, anchor: 0, focus: 0, compStart: -1, compEnd: -1 };
 
 // The argv is fixed at compile time and a packaged app starts with cwd `/`, so
 // sh derives the bundle path from its parent. NATIVECAST_HOST overrides it for
@@ -94,7 +95,7 @@ export const viewUnbound = [
 export function initialModel(): [Model, Cmd<Msg>] {
   return [
     {
-      search: { bytes: EMPTY_BYTES, anchor: 0, focus: 0, compStart: -1, compEnd: -1 },
+      search: EMPTY_SEARCH,
       seq: 0,
       url: EMPTY_BYTES,
       authorization: EMPTY_BYTES,
@@ -159,12 +160,19 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
     }
     case "select_previous":
       return { ...model, selected: model.selected > 0 ? model.selected - 1 : 0 };
-    case "toggle":
+    case "toggle": {
       if (model.visible) return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
           { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
           { line: "search_line", ok: "search_ended", err: "search_failed" },
         )])];
-      return [{ ...model, visible: true }, Cmd.showWindow("main")];
+      // The window opens on an empty search, which the host answers with suggestions.
+      // showWindow goes last: a command after it in the same batch is read back corrupt.
+      const seq = model.seq < 1000000000 ? model.seq + 1 : 0;
+      return [{ ...model, visible: true, search: EMPTY_SEARCH, seq, rows: [], rowCount: 0, selected: 0 }, Cmd.batch([Cmd.fetch(
+          { url: model.url, method: "POST", headers: { Authorization: model.authorization }, body: searchBody(seq, EMPTY_BYTES), timeoutMs: 30000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        ), Cmd.showWindow("main")])];
+    }
     case "hide":
       return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
           { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
@@ -172,13 +180,20 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
         )])];
     case "quit":
       return [model, Cmd.quitApp()];
-    case "host_line":
+    case "host_line": {
       if (!hasPrefix(msg.line, asciiBytes("HOTKEY"))) return onHostLine(model, msg.line);
       if (model.visible) return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
           { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
           { line: "search_line", ok: "search_ended", err: "search_failed" },
         )])];
-      return [{ ...model, visible: true }, Cmd.showWindow("main")];
+      // The window opens on an empty search, which the host answers with suggestions.
+      // showWindow goes last: a command after it in the same batch is read back corrupt.
+      const seq = model.seq < 1000000000 ? model.seq + 1 : 0;
+      return [{ ...model, visible: true, search: EMPTY_SEARCH, seq, rows: [], rowCount: 0, selected: 0 }, Cmd.batch([Cmd.fetch(
+          { url: model.url, method: "POST", headers: { Authorization: model.authorization }, body: searchBody(seq, EMPTY_BYTES), timeoutMs: 30000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        ), Cmd.showWindow("main")])];
+    }
     case "host_exit":
       return { ...model, status: utf8Bytes(`Host exited with code ${Math.trunc(msg.code)}`) };
     case "host_failed":

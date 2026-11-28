@@ -53,6 +53,14 @@ export async function searchApps(query: string): Promise<App[]> {
     .map(({ app }) => app);
 }
 
+/** What an empty search shows: the apps opened most, most recent first among equals. */
+export async function suggestedApps(): Promise<App[]> {
+  return (await listApps())
+    .filter((app) => usage[app.path])
+    .sort((a, b) => decayedOpens(b.path) - decayedOpens(a.path))
+    .slice(0, MAX_RESULTS);
+}
+
 export async function recordOpen(path: string) {
   usage[path] = { count: decayedOpens(path) + 1, at: Date.now() };
   await Bun.write(usageFile, JSON.stringify(usage));

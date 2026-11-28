@@ -271,6 +271,29 @@ test("an opened application ranks above an equal match", async () => {
   expect(Object.keys(await Bun.file(usageFile).json())).toEqual([join(apps, "Calculator.app")]);
 });
 
+test("an empty search suggests opened applications", () => {
+  type("");
+  assertSnapshot('role=listitem name="Calculator"');
+  expect(listed()).toEqual(["Calculator"]);
+});
+
+test("showing the window starts from an empty search with suggestions", () => {
+  type("am");
+  assertSnapshot('role=listitem name="Activity Monitor"');
+  // Showing the window takes the keyboard, so the app in front gets it back afterwards.
+  const frontAsn = Bun.spawnSync(["lsappinfo", "front"]).stdout.toString().trim();
+  const front = Bun.spawnSync(["lsappinfo", "info", "-only", "bundlepath", frontAsn]).stdout.toString().match(/="(.+)"/)![1]!;
+  automate("tray-action", "1");
+  try {
+    assertSnapshot('role=listitem name="Calculator"');
+    assertGone('role=textbox name="Search".* text="');
+    expect(listed()).toEqual(["Calculator"]);
+  } finally {
+    automate("shortcut", "window.hide");
+    Bun.spawnSync(["open", "-a", front]);
+  }
+});
+
 test("an application added to a subfolder shows up without a restart", () => {
   mkdirSync(join(apps, "Games"));
   symlinkSync("/System/Applications/Chess.app", join(apps, "Games", "Chess.app"));
