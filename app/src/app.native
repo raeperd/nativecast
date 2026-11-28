@@ -1,0 +1,17 @@
+<column background="background" padding="12" gap="8">
+  <search-field text="{searchText}" placeholder="Search…" on-input="search_edit" on-submit="activate" autofocus="{visible}" label="Search" />
+  <scroll grow="1" label="Results">
+    <list label="Results" role="list" gap="2">
+      <for each="visibleRows" as="r" key="id">
+        <list-item key="{r.id}" height="44" padding="8" gap="10" cross="center" selected="{r.selected}" on-press="choose:{r.id}" role="listitem" label="{r.title}">
+          <column gap="1" grow="1">
+            <text wrap="false">{r.title}</text>
+            <text size="sm" foreground="text_muted" wrap="false">{r.subtitle}</text>
+          </column>
+          <text size="sm" foreground="text_muted" wrap="false">{r.source}</text>
+        </list-item>
+      </for>
+    </list>
+  </scroll>
+  <status-bar>{status}</status-bar>
+</column>

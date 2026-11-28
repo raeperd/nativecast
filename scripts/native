@@ -1,0 +1,4 @@
+#!/bin/sh
+# Runs the Native SDK CLI installed by scripts/setup-native.sh.
+root=$(cd "$(dirname "$0")/.." && pwd)
+exec node "$root/.tools/native/sdk/bin/native.js" "$@"
