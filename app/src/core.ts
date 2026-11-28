@@ -4,7 +4,7 @@
 // Host stdout (Cmd.spawn, one stream for the app's lifetime):
 //   READY <port> <token> | HOTKEY | LOADED <name> <ms> | ERROR <name> <message> | REMOVED <name>
 // Search response (Cmd.fetch line stream, one per keystroke):
-//   S <seq> | R <seq> <source> <title> <subtitle> <url|copy> <value> | D <seq>
+//   S <seq> | R <seq> <source> <title> <subtitle> <url|copy|open> <value> | D <seq>
 //
 // Streaming fetch rejects a live duplicate key, so searches carry no key at
 // all. The host ends the previous stream when a new search arrives, and
@@ -139,6 +139,12 @@ export function update(model: Model, msg: Msg): Model | [Model, Cmd<Msg>] {
       if (row === undefined) return model;
       if (hasPrefix(row.action, asciiBytes("url"))) {
         return [{ ...model, visible: false }, Cmd.batch([Cmd.openExternalUrl(row.value), Cmd.hideWindow("main")])];
+      }
+      if (hasPrefix(row.action, asciiBytes("open"))) {
+        return [{ ...model, visible: false }, Cmd.batch([Cmd.hideWindow("main"), Cmd.fetch(
+          { url: joinBytes([model.url, asciiBytes("open")]), method: "POST", headers: { Authorization: model.authorization }, body: row.value, timeoutMs: 2000, maxLineBytes: 8192 },
+          { line: "search_line", ok: "search_ended", err: "search_failed" },
+        )])];
       }
       return [{ ...model, visible: false }, Cmd.batch([Cmd.clipboardWrite(row.value), Cmd.hideWindow("main"), Cmd.fetch(
           { url: joinBytes([model.url, asciiBytes("restore-focus")]), method: "POST", headers: { Authorization: model.authorization }, timeoutMs: 2000, maxLineBytes: 8192 },
