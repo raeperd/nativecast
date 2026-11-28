@@ -12,6 +12,7 @@ const extensions = join(home, "extensions");
 // The app folder holds links to real system apps, so results do not depend on
 // what this machine has installed.
 const apps = join(home, "apps");
+const usageFile = join(home, "usage.json");
 const abortLog = join(extensions, ".aborted");
 let app: Bun.Subprocess;
 let searchField: string;
@@ -21,7 +22,9 @@ beforeAll(async () => {
   savedClipboard = Bun.spawnSync(["pbpaste"]).stdout.toString();
   mkdirSync(extensions);
   mkdirSync(apps);
-  symlinkSync("/System/Applications/Calculator.app", join(apps, "Calculator.app"));
+  for (const app of ["Calculator", "Calendar", "Utilities/Activity Monitor"]) {
+    symlinkSync(`/System/Applications/${app}.app`, join(apps, `${app.split("/").pop()}.app`));
+  }
   rmSync(join(appDir, ".zig-cache/native-sdk-automation"), { recursive: true, force: true });
   app = Bun.spawn([join(appDir, "zig-out/bin/nativecast")], {
     cwd: appDir,
@@ -32,6 +35,7 @@ beforeAll(async () => {
       NATIVECAST_HOST: join(root, "dist/bin/nativecast-host"),
       NATIVECAST_EXTENSIONS_DIR: extensions,
       NATIVECAST_APP_DIRS: apps,
+      NATIVECAST_USAGE_FILE: usageFile,
     },
   });
   automate("wait");
@@ -58,6 +62,11 @@ function assertSnapshot(...patterns: string[]) {
 
 function assertGone(...patterns: string[]) {
   automate("assert", "--absent", "--timeout-ms", "5000", ...patterns);
+}
+
+/** Result titles from top to bottom. */
+function listed() {
+  return [...automate("snapshot").matchAll(/role=listitem name="([^"]*)"/g)].map((match) => match[1]);
 }
 
 function type(text: string) {
@@ -231,6 +240,18 @@ test("arrow selection and Enter copy the selected result", async () => {
   uninstall("copy.ts");
 });
 
+test("applications rank by how well the name matches", () => {
+  type("cal");
+  assertSnapshot('role=listitem name="Calculator"');
+  expect(listed()).toEqual(["Calendar", "Calculator"]);
+  type("am");
+  assertSnapshot('role=listitem name="Activity Monitor"');
+  expect(listed()[0]).toBe("Activity Monitor");
+  type("clc");
+  assertSnapshot('role=listitem name="Calculator"');
+  expect(listed()).toEqual(["Calculator"]);
+});
+
 test("an application is found by name and opens on Enter", async () => {
   const running = () => Bun.spawnSync(["pgrep", "-x", "Calculator"]).exitCode === 0;
   const wasRunning = running();
@@ -241,6 +262,13 @@ test("an application is found by name and opens on Enter", async () => {
   for (let i = 0; i < 50 && !running(); i++) await Bun.sleep(100);
   expect(running()).toBe(true);
   if (!wasRunning) Bun.spawnSync(["pkill", "-x", "Calculator"]);
+});
+
+test("an opened application ranks above an equal match", async () => {
+  type("cal");
+  assertSnapshot('role=listitem name="Calendar"');
+  expect(listed()).toEqual(["Calculator", "Calendar"]);
+  expect(Object.keys(await Bun.file(usageFile).json())).toEqual([join(apps, "Calculator.app")]);
 });
 
 test("an application added to a subfolder shows up without a restart", () => {

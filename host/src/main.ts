@@ -5,7 +5,7 @@ import { mkdir, readdir, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import type { Item } from "./api";
-import { searchApps } from "./apps";
+import { recordOpen, searchApps } from "./apps";
 
 const SEARCH_TIMEOUT_MS = 5_000;
 const HOOK_TIMEOUT_MS = 1_000;
@@ -55,8 +55,9 @@ function restoreFocus() {
 }
 
 /** The opened app comes to the front, so the previous one is forgotten. */
-function openApp(path: string) {
+async function openApp(path: string) {
   Bun.spawn(["open", path]);
+  await recordOpen(path);
   previousFront = undefined;
   return new Response();
 }
